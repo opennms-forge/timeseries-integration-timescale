@@ -44,11 +44,11 @@ import org.slf4j.LoggerFactory;
  */
 
 public class DBUtils {
-    private Logger LOG = LoggerFactory.getLogger(DBUtils.class);
+    private Logger LOG;
 
-    private final Set<Statement> m_statements;
-    private final Set<ResultSet> m_resultSets;
-    private final Set<Connection> m_connections;
+    private final Set<Statement> statements;
+    private final Set<ResultSet> resultSets;
+    private final Set<Connection> connections;
 
     /**
      * <p>Constructor for DBUtils.</p>
@@ -63,9 +63,9 @@ public class DBUtils {
      * @param loggingClass a {@link java.lang.Class} object.
      */
     public DBUtils(Class<?> loggingClass) {
-        m_statements = Collections.synchronizedSet(new HashSet<Statement>());
-        m_resultSets = Collections.synchronizedSet(new HashSet<ResultSet>());
-        m_connections = Collections.synchronizedSet(new HashSet<Connection>());
+        statements = Collections.synchronizedSet(new HashSet<Statement>());
+        resultSets = Collections.synchronizedSet(new HashSet<ResultSet>());
+        connections = Collections.synchronizedSet(new HashSet<Connection>());
         LOG = LoggerFactory.getLogger(loggingClass);
     }
 
@@ -75,39 +75,25 @@ public class DBUtils {
             watch(o);
         }
     }
-    /**
-     * <p>setLoggingClass</p>
-     *
-     * @param c a {@link java.lang.Class} object.
-     * @return a {@link org.opennms.core.utils.DBUtils} object.
-     */
+
     public DBUtils setLoggingClass(Class<?> c) {
         LOG = LoggerFactory.getLogger(c);
         return this;
     }
 
-    /**
-     * <p>watch</p>
-     *
-     * @param o a {@link java.lang.Object} object.
-     * @return a {@link org.opennms.core.utils.DBUtils} object.
-     */
     public DBUtils watch(Object o) {
         if (o instanceof Statement) {
-            m_statements.add((Statement)o);
+            statements.add((Statement)o);
         } else if (o instanceof ResultSet) {
-            m_resultSets.add((ResultSet)o);
+            resultSets.add((ResultSet)o);
         } else if (o instanceof Connection) {
-            m_connections.add((Connection)o);
+            connections.add((Connection)o);
         }
         return this;
     }
 
-    /**
-     * <p>cleanUp</p>
-     */
     public void cleanUp() {
-        for (ResultSet rs : m_resultSets) {
+        for (ResultSet rs : resultSets) {
             if (rs != null) {
                 try {
                     rs.close();
@@ -116,9 +102,9 @@ public class DBUtils {
                 }
             }
         }
-        m_resultSets.clear();
+        resultSets.clear();
 
-        for (Statement s : m_statements) {
+        for (Statement s : statements) {
             if (s != null) {
                 try {
                     s.close();
@@ -127,9 +113,9 @@ public class DBUtils {
                 }
             }
         }
-        m_statements.clear();
+        statements.clear();
 
-        for (Connection c : m_connections) {
+        for (Connection c : connections) {
             if (c != null) {
                 try {
                     c.close();
@@ -138,7 +124,7 @@ public class DBUtils {
                 }
             }
         }
-        m_connections.clear();
+        connections.clear();
     }
 
 }

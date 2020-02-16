@@ -33,7 +33,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -56,22 +55,25 @@ import org.opennms.integration.api.v1.timeseries.immutables.ImmutableMetric;
 import org.opennms.integration.api.v1.timeseries.immutables.ImmutableSample;
 import org.opennms.integration.api.v1.timeseries.immutables.ImmutableTag;
 import org.opennms.timeseries.impl.timescale.util.DBUtils;
+import org.slf4j.Logger;
 
 import com.google.common.collect.Lists;
-import com.swrve.ratelimitedlogger.RateLimitedLog;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@RequiredArgsConstructor
 public class TimescaleStorage implements TimeSeriesStorage {
 
-    private static final RateLimitedLog RATE_LIMITED_LOGGER = RateLimitedLog
-            .withRateLimit(log)
-            .maxRate(5).every(Duration.ofSeconds(30))
-            .build();
+    private static final Logger RATE_LIMITED_LOGGER = log; // TODO Patrick: add RateLimitedLog?
+//    RateLimitedLog
+//            .withRateLimit(log)
+//            .maxRate(5).every(Duration.standardSeconds(30))
+//            .build();
 
-    @Autowired // TODO Patrick: how do we connect to the database? Open our own connection?
-    private DataSource dataSource;
+
+    private final DataSource dataSource;
 
     private int maxBatchSize = 100; // TODO Patrick: do we need to make value configurable?
 
@@ -109,8 +111,9 @@ public class TimescaleStorage implements TimeSeriesStorage {
             }
         } catch (SQLException e) {
             RATE_LIMITED_LOGGER.error("An error occurred while inserting samples. Some sample may be lost.", e);
-            db.cleanUp();
             throw new StorageException(e);
+        } finally {
+            db.cleanUp();
         }
     }
 
@@ -181,8 +184,9 @@ public class TimescaleStorage implements TimeSeriesStorage {
             }
             return metrics;
         } catch (SQLException e) {
-            db.cleanUp();
             throw new StorageException(e);
+        } finally {
+            db.cleanUp();
         }
     }
 
@@ -237,11 +241,11 @@ public class TimescaleStorage implements TimeSeriesStorage {
                 long timestamp = rs.getTimestamp("step").getTime();
                 samples.add(ImmutableSample.builder().metric(request.getMetric()).time(Instant.ofEpochMilli(timestamp)).value(rs.getDouble("aggregation")).build());
             }
-            rs.close();
         } catch (SQLException e) {
-            db.cleanUp();
             log.error("Could not retrieve FetchResults", e);
             throw new StorageException(e);
+        } finally {
+            db.cleanUp();
         }
         return samples;
     }
@@ -258,19 +262,19 @@ public class TimescaleStorage implements TimeSeriesStorage {
             db.watch(statement);
             statement.setString(1, metric.getKey());
             int deletedTimeseriesEntries = statement.executeUpdate();
-            statement.close();
 
             statement = connection.prepareStatement("DELETE FROM timescale_tag where fk_timescale_metric=?");
             db.watch(statement);
             statement.setString(1, metric.getKey());
             int deletedTimeseriesTags = statement.executeUpdate();
-            statement.close();
 
             log.debug("Deleted {} timeseries entries and {} timeseries tags for metric {}", deletedTimeseriesEntries, deletedTimeseriesTags, metric);
         } catch (SQLException e) {
             log.error("Could not retrieve FetchResults", e);
             db.cleanUp();
             throw new StorageException(e);
+        } finally {
+            db.cleanUp();
         }
     }
 
