@@ -96,7 +96,7 @@ public class TimescaleStorage implements TimeSeriesStorage {
                     ps.setString(2, sample.getMetric().getKey());
                     ps.setDouble(3, sample.getValue());
                     ps.addBatch();
-                    storeTags(sample.getMetric(), ImmutableMetric.TagType.intrinsic, sample.getMetric().getTags());
+                    storeTags(sample.getMetric(), ImmutableMetric.TagType.intrinsic, sample.getMetric().getIntrinsicTags());
                     storeTags(sample.getMetric(), ImmutableMetric.TagType.meta, sample.getMetric().getMetaTags());
                 }
                 ps.executeBatch();
@@ -174,7 +174,7 @@ public class TimescaleStorage implements TimeSeriesStorage {
                     Tag tag = new ImmutableTag(rs.getString("key"), rs.getString("value"));
                     ImmutableMetric.TagType type = ImmutableMetric.TagType.valueOf(rs.getString("type"));
                     if ((type == ImmutableMetric.TagType.intrinsic)) {
-                        metric.tag(tag);
+                        metric.intrinsicTag(tag);
                     } else {
                         metric.metaTag(tag);
                     }
