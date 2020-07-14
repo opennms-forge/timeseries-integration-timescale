@@ -13,13 +13,15 @@
         <java.version>1.8</java.version>
         <osgiVersion>6.0.0</osgiVersion>
         <karafVersion>4.2.6</karafVersion>
+        <opennms.api.version>0.5.1-SNAPSHOT</opennms.api.version>
+        <log4j.version>2.13.3</log4j.version>
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>org.opennms.integration.api</groupId>
             <artifactId>common</artifactId>
-            <version>0.4.1</version>
+            <version>${opennms.api.version}</version>
         </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>
@@ -60,11 +62,45 @@
             <version>1.18.10</version>
             <scope>provided</scope>
         </dependency>
-
+        <dependency>
+            <groupId>org.opennms.integration.api</groupId>
+            <artifactId>tss-tests</artifactId>
+            <version>${opennms.api.version}</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>4.12</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>1.14.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>3.4.5</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.2.5</version>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>influxdb</artifactId>
+            <version>1.14.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-slf4j-impl</artifactId>
+            <version>${log4j.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

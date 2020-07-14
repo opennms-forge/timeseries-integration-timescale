@@ -14,8 +14,14 @@ import org.apache.karaf.shell.api.action.lifecycle.Reference;
 import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.opennms.timeseries.impl.timescale.util.DBUtils;
 
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+
 @Command(scope = "timescale", name = "init", description = "Initializes the database tables for the Timeseries Integration Timescale Plugin.")
 @Service
+@Builder
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class InitTimescale implements Action {
 
     @Reference
@@ -23,6 +29,8 @@ public class InitTimescale implements Action {
 
     @Option(name = "-p", aliases = "--print-only", description = "Only print sql, not actually executing.")
     private boolean printOnly;
+
+    public InitTimescale(){}
 
     @Override
     public Object execute() {
@@ -51,7 +59,7 @@ public class InitTimescale implements Action {
             executeQuery(stmt, "CREATE TABLE timescale_tag(fk_timescale_metric TEXT NOT NULL, key TEXT, value TEXT NOT NULL, type TEXT NOT NULL, UNIQUE (fk_timescale_metric, key, value, type))");
             System.out.println("Done. Enjoy!");
         } catch (SQLException e) {
-            System.out.println("An SQLException occured:");
+            System.out.println("An SQLException occurred:");
             e.printStackTrace(System.out);
         } finally {
             db.cleanUp();

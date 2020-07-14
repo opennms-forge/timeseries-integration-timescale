@@ -36,6 +36,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -67,15 +68,10 @@ import lombok.extern.slf4j.Slf4j;
 public class TimescaleStorage implements TimeSeriesStorage {
 
     private static final Logger RATE_LIMITED_LOGGER = log; // TODO Patrick: add RateLimitedLog?
-//    RateLimitedLog
-//            .withRateLimit(log)
-//            .maxRate(5).every(Duration.standardSeconds(30))
-//            .build();
-
 
     private final DataSource dataSource;
 
-    private int maxBatchSize = 100; // TODO Patrick: do we need to make value configurable?
+    private int maxBatchSize = 100;
 
     @Override
     public void store(List<Sample> entries) throws StorageException {
@@ -140,8 +136,13 @@ public class TimescaleStorage implements TimeSeriesStorage {
         }
     }
 
+    @Override
     public List<Metric> getMetrics(Collection<Tag> tags) throws StorageException {
         Objects.requireNonNull(tags, "tags collection can not be null");
+        if(tags.isEmpty()) {
+            // nothing to do
+            return Collections.emptyList();
+        }
 
         final DBUtils db = new DBUtils(this.getClass());
         try {
@@ -162,27 +163,7 @@ public class TimescaleStorage implements TimeSeriesStorage {
             rs.close();
 
             // Load the actual metrics
-            List<Metric> metrics = new ArrayList<>();
-            sql = "SELECT * FROM timescale_tag WHERE fk_timescale_metric=?";
-            for(String metricKey : metricKeys) {
-                ps = connection.prepareStatement(sql);
-                db.watch(ps);
-                ps.setString(1, metricKey);
-                rs = ps.executeQuery();
-                ImmutableMetric.MetricBuilder metric = ImmutableMetric.builder();
-                while (rs.next()) {
-                    Tag tag = new ImmutableTag(rs.getString("key"), rs.getString("value"));
-                    ImmutableMetric.TagType type = ImmutableMetric.TagType.valueOf(rs.getString("type"));
-                    if ((type == ImmutableMetric.TagType.intrinsic)) {
-                        metric.intrinsicTag(tag);
-                    } else {
-                        metric.metaTag(tag);
-                    }
-                }
-                metrics.add(metric.build());
-                rs.close();
-            }
-            return metrics;
+            return loadMetrics(connection, db, metricKeys);
         } catch (SQLException e) {
             throw new StorageException(e);
         } finally {
@@ -190,18 +171,47 @@ public class TimescaleStorage implements TimeSeriesStorage {
         }
     }
 
+    private List<Metric> loadMetrics(Connection connection, DBUtils db, Collection<String> metricKeys) throws SQLException {
+        List<Metric> metrics = new ArrayList<>();
+        String sql = "SELECT * FROM timescale_tag WHERE fk_timescale_metric=?";
+        PreparedStatement ps = connection.prepareStatement(sql);
+        db.watch(ps);
+        for(String metricKey : metricKeys) {
+            ps.setString(1, metricKey);
+            ResultSet rs = ps.executeQuery();
+            ImmutableMetric.MetricBuilder metric = ImmutableMetric.builder();
+            while (rs.next()) {
+                Tag tag = new ImmutableTag(rs.getString("key"), rs.getString("value"));
+                ImmutableMetric.TagType type = ImmutableMetric.TagType.valueOf(rs.getString("type"));
+                if ((type == ImmutableMetric.TagType.intrinsic)) {
+                    metric.intrinsicTag(tag);
+                } else {
+                    metric.metaTag(tag);
+                }
+            }
+            metrics.add(metric.build());
+            rs.close();
+        }
+        return metrics;
+    }
+
     String createMetricsSQL(Collection<Tag> tags) {
         Objects.requireNonNull(tags, "tags collection can not be null");
-        StringBuilder b = new StringBuilder("select distinct fk_timescale_metric from timescale_tag");
-        if (!tags.isEmpty()) {
-            b.append(" where 1=1");
-            for (Tag tag : tags) {
+        List<Tag> tagsList = new ArrayList<>(tags);
+        StringBuilder b = new StringBuilder( "select distinct t0.fk_timescale_metric from timescale_tag t0");
+        for (int i=1; i< tags.size(); i++) {
+            b.append(String.format(" join timescale_tag t%s on t%s.fk_timescale_metric = t%s.fk_timescale_metric", i, i-1, 1 ));
+        }
+        b.append(" WHERE");
+        for (int i=0; i<tags.size(); i++) {
+            if (i>0) {
                 b.append(" AND");
-                b.append(" (key").append(handleNull(tag.getKey())).append(" AND ");
-                b.append("value").append(handleNull(tag.getValue())).append(")");
             }
+            Tag tag = tagsList.get(i);
+            b.append(String.format(" (t%s.key='%s' AND t%s.value='%s')", i, tag.getKey(), i, tag.getValue()));
         }
         b.append(";");
+
         return b.toString();
     }
 
@@ -222,12 +232,15 @@ public class TimescaleStorage implements TimeSeriesStorage {
             db.watch(connection);
             long stepInSeconds = request.getStep().getSeconds();
 
-            String sql = String.format("SELECT time_bucket_gapfill('%s Seconds', time) AS step, "
-                    + "%s(value) as aggregation, avg(value), max(value) FROM timescale_time_series where "
-                    + "key=? AND time > ? AND time < ? GROUP BY step ORDER BY step ASC", stepInSeconds, toSql(request.getAggregation()) );
-//            if(maxrows>0) {
-//                sql = sql + " LIMIT " + maxrows;
-//            }
+            String sql;
+            if(Aggregation.NONE == request.getAggregation()) {
+                sql = "SELECT time AS step, value as aggregation FROM timescale_time_series where key=? AND time > ? AND time < ? ORDER BY step ASC";
+
+            } else {
+                sql = String.format("SELECT time_bucket_gapfill('%s Seconds', time) AS step, "
+                        + "%s(value) as aggregation, avg(value), max(value) FROM timescale_time_series where "
+                        + "key=? AND time > ? AND time < ? GROUP BY step ORDER BY step ASC", stepInSeconds, toSql(request.getAggregation()));
+            }
             PreparedStatement statement = connection.prepareStatement(sql);
             db.watch(statement);
             statement.setString(1, request.getMetric().getKey());
@@ -236,10 +249,11 @@ public class TimescaleStorage implements TimeSeriesStorage {
             ResultSet rs = statement.executeQuery();
             db.watch(rs);
 
+            Metric metric = loadMetrics(connection, db, Collections.singletonList(request.getMetric().getKey())).get(0);
             samples = new ArrayList<>();
             while (rs.next()) {
                 long timestamp = rs.getTimestamp("step").getTime();
-                samples.add(ImmutableSample.builder().metric(request.getMetric()).time(Instant.ofEpochMilli(timestamp)).value(rs.getDouble("aggregation")).build());
+                samples.add(ImmutableSample.builder().metric(metric).time(Instant.ofEpochMilli(timestamp)).value(rs.getDouble("aggregation")).build());
             }
         } catch (SQLException e) {
             log.error("Could not retrieve FetchResults", e);
