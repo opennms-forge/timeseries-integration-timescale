@@ -179,17 +179,23 @@ public class TimescaleStorage implements TimeSeriesStorage {
         for(String metricKey : metricKeys) {
             ps.setString(1, metricKey);
             ResultSet rs = ps.executeQuery();
+            db.watch(rs);
             ImmutableMetric.MetricBuilder metric = ImmutableMetric.builder();
+            boolean intrinsicTagAvailable = false;
             while (rs.next()) {
                 Tag tag = new ImmutableTag(rs.getString("key"), rs.getString("value"));
                 ImmutableMetric.TagType type = ImmutableMetric.TagType.valueOf(rs.getString("type"));
                 if ((type == ImmutableMetric.TagType.intrinsic)) {
                     metric.intrinsicTag(tag);
+                    intrinsicTagAvailable = true;
                 } else {
                     metric.metaTag(tag);
                 }
             }
-            metrics.add(metric.build());
+            if(intrinsicTagAvailable) {
+                // create metric only if at least one intrinsic tag is available. Otherwise we are no valid metric.
+                metrics.add(metric.build());
+            }
             rs.close();
         }
         return metrics;
@@ -231,6 +237,12 @@ public class TimescaleStorage implements TimeSeriesStorage {
             final Connection connection = this.dataSource.getConnection();
             db.watch(connection);
             long stepInSeconds = request.getStep().getSeconds();
+            List<Metric> metrics = loadMetrics(connection, db, Collections.singletonList(request.getMetric().getKey()));
+            if(metrics.isEmpty()) {
+                // we didn't find teh metric => nothing to do.
+                return Collections.emptyList();
+            }
+            Metric metric = metrics.get(0);
 
             String sql;
             if(Aggregation.NONE == request.getAggregation()) {
@@ -248,8 +260,6 @@ public class TimescaleStorage implements TimeSeriesStorage {
             statement.setTimestamp(3, new java.sql.Timestamp(request.getEnd().toEpochMilli()));
             ResultSet rs = statement.executeQuery();
             db.watch(rs);
-
-            Metric metric = loadMetrics(connection, db, Collections.singletonList(request.getMetric().getKey())).get(0);
             samples = new ArrayList<>();
             while (rs.next()) {
                 long timestamp = rs.getTimestamp("step").getTime();
