@@ -38,7 +38,6 @@ import org.junit.BeforeClass;
 import org.opennms.integration.api.v1.timeseries.AbstractStorageIntegrationTest;
 import org.opennms.integration.api.v1.timeseries.StorageException;
 import org.opennms.integration.api.v1.timeseries.TimeSeriesStorage;
-import org.opennms.timeseries.impl.timescale.shell.InitTimescale;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -58,7 +57,7 @@ public class TimescaleStorageTest extends AbstractStorageIntegrationTest {
 
     @BeforeClass
     public static void setUpContainer() {
-        container = new GenericContainer<>("timescale/timescaledb") // :latest-pg12
+        container = new GenericContainer<>("timescale/timescaledb:latest-pg12")
                 .withExposedPorts(5432)
                 .withEnv("POSTGRES_PASSWORD", "password")
                 .withEnv("TIMESCALEDB_TELEMETRY", "off")
@@ -68,7 +67,6 @@ public class TimescaleStorageTest extends AbstractStorageIntegrationTest {
         container.start();
 
         DataSource ds = createDatasource();
-        InitTimescale.builder().dataSource(ds).build().execute();
     }
 
     @AfterClass
@@ -88,6 +86,7 @@ public class TimescaleStorageTest extends AbstractStorageIntegrationTest {
     public void setUp() throws StorageException {
         DataSource dataSource = createDatasource();
         timescale = new TimescaleStorage(dataSource);
+        timescale.init();
         super.setUp();
     }
 

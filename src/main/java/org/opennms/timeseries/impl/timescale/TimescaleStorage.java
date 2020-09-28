@@ -56,6 +56,7 @@ import org.opennms.integration.api.v1.timeseries.immutables.ImmutableMetric;
 import org.opennms.integration.api.v1.timeseries.immutables.ImmutableSample;
 import org.opennms.integration.api.v1.timeseries.immutables.ImmutableTag;
 import org.opennms.timeseries.impl.timescale.util.DBUtils;
+import org.opennms.timeseries.impl.timescale.util.TimescaleDatabaseInitializer;
 import org.slf4j.Logger;
 
 import com.google.common.collect.Lists;
@@ -139,7 +140,7 @@ public class TimescaleStorage implements TimeSeriesStorage {
     @Override
     public List<Metric> getMetrics(Collection<Tag> tags) throws StorageException {
         Objects.requireNonNull(tags, "tags collection can not be null");
-        if(tags.isEmpty()) {
+        if (tags.isEmpty()) {
             // nothing to do
             return Collections.emptyList();
         }
@@ -148,7 +149,7 @@ public class TimescaleStorage implements TimeSeriesStorage {
         try {
 
             String sql = createMetricsSQL(tags);
-            Connection connection =  this.dataSource.getConnection();
+            Connection connection = this.dataSource.getConnection();
             db.watch(connection);
 
             // Get all relevant metricKeys
@@ -176,7 +177,7 @@ public class TimescaleStorage implements TimeSeriesStorage {
         String sql = "SELECT * FROM timescale_tag WHERE fk_timescale_metric=?";
         PreparedStatement ps = connection.prepareStatement(sql);
         db.watch(ps);
-        for(String metricKey : metricKeys) {
+        for (String metricKey : metricKeys) {
             ps.setString(1, metricKey);
             ResultSet rs = ps.executeQuery();
             db.watch(rs);
@@ -192,7 +193,7 @@ public class TimescaleStorage implements TimeSeriesStorage {
                     metric.metaTag(tag);
                 }
             }
-            if(intrinsicTagAvailable) {
+            if (intrinsicTagAvailable) {
                 // create metric only if at least one intrinsic tag is available. Otherwise we are no valid metric.
                 metrics.add(metric.build());
             }
@@ -204,13 +205,13 @@ public class TimescaleStorage implements TimeSeriesStorage {
     String createMetricsSQL(Collection<Tag> tags) {
         Objects.requireNonNull(tags, "tags collection can not be null");
         List<Tag> tagsList = new ArrayList<>(tags);
-        StringBuilder b = new StringBuilder( "select distinct t0.fk_timescale_metric from timescale_tag t0");
-        for (int i=1; i< tags.size(); i++) {
-            b.append(String.format(" join timescale_tag t%s on t%s.fk_timescale_metric = t%s.fk_timescale_metric", i, i-1, 1 ));
+        StringBuilder b = new StringBuilder("select distinct t0.fk_timescale_metric from timescale_tag t0");
+        for (int i = 1; i < tags.size(); i++) {
+            b.append(String.format(" join timescale_tag t%s on t%s.fk_timescale_metric = t%s.fk_timescale_metric", i, i - 1, 1));
         }
         b.append(" WHERE");
-        for (int i=0; i<tags.size(); i++) {
-            if (i>0) {
+        for (int i = 0; i < tags.size(); i++) {
+            if (i > 0) {
                 b.append(" AND");
             }
             Tag tag = tagsList.get(i);
@@ -229,7 +230,7 @@ public class TimescaleStorage implements TimeSeriesStorage {
     }
 
     @Override
-    public List<Sample> getTimeseries(TimeSeriesFetchRequest request) throws StorageException  {
+    public List<Sample> getTimeseries(TimeSeriesFetchRequest request) throws StorageException {
 
         DBUtils db = new DBUtils();
         ArrayList<Sample> samples;
@@ -238,14 +239,14 @@ public class TimescaleStorage implements TimeSeriesStorage {
             db.watch(connection);
             long stepInSeconds = request.getStep().getSeconds();
             List<Metric> metrics = loadMetrics(connection, db, Collections.singletonList(request.getMetric().getKey()));
-            if(metrics.isEmpty()) {
+            if (metrics.isEmpty()) {
                 // we didn't find teh metric => nothing to do.
                 return Collections.emptyList();
             }
             Metric metric = metrics.get(0);
 
             String sql;
-            if(Aggregation.NONE == request.getAggregation()) {
+            if (Aggregation.NONE == request.getAggregation()) {
                 sql = "SELECT time AS step, value as aggregation FROM timescale_time_series where key=? AND time > ? AND time < ? ORDER BY step ASC";
 
             } else {
@@ -303,11 +304,11 @@ public class TimescaleStorage implements TimeSeriesStorage {
     }
 
     private String toSql(final Aggregation aggregation) {
-        if(Aggregation.AVERAGE == aggregation) {
+        if (Aggregation.AVERAGE == aggregation) {
             return "avg";
         } else if (Aggregation.MAX == aggregation) {
             return "max";
-        } else if(Aggregation.MIN == aggregation) {
+        } else if (Aggregation.MIN == aggregation) {
             return "min";
         } else {
             throw new IllegalArgumentException("Unknown aggregation " + aggregation);
@@ -317,5 +318,14 @@ public class TimescaleStorage implements TimeSeriesStorage {
     @Override
     public boolean supportsAggregation(final Aggregation aggregation) {
         return aggregation == Aggregation.MAX || aggregation == Aggregation.MIN || aggregation == Aggregation.AVERAGE;
+    }
+
+    public void init() throws StorageException {
+        try {
+            new TimescaleDatabaseInitializer(this.dataSource)
+                    .initializeIfNeeded();
+        } catch (final SQLException e) {
+            throw new StorageException(e);
+        }
     }
 }

@@ -11,7 +11,9 @@
 ">
 
     <reference id="dataSource" interface="javax.sql.DataSource" availability="mandatory" />
-    <bean id="timeSeriesStorageTimescale" class="org.opennms.timeseries.impl.timescale.TimescaleStorage" >
+    <bean id="timeSeriesStorageTimescale"
+          class="org.opennms.timeseries.impl.timescale.TimescaleStorage"
+          init-method="init">
         <argument ref="dataSource" />
     </bean>
     <service ref="timeSeriesStorageTimescale" interface="org.opennms.integration.api.v1.timeseries.TimeSeriesStorage">
