@@ -10,8 +10,11 @@ It can be used in OpenNMS to store and retrieve timeseries data.
 
 ## Usage
 * compile: ``mvn install``
-* activation: Enable the Time Series Storage layer: http://docs.opennms.org/opennms/releases/26.1.0/guide-admin/guide-admin.html#_configuration_4
-* activate in Karaf shell: ``bundle:install -s mvn:org.opennms.plugins.timeseries.timescale/timeseries-timescale-plugin/1.0.0-SNAPSHOT``
+* enable the Time Series Storage layer: http://docs.opennms.org/opennms/releases/26.1.0/guide-admin/guide-admin.html#_configuration_4
+* activate in Karaf shell:
+  * ``ssh -p 8101 admin@localhost``
+  * ``bundle:install -s mvn:org.opennms.plugins.timeseries.timescale/timeseries-timescale-plugin/1.0.0-SNAPSHOT``
+  * The plugin will automatically create the necessary tables if they don't already exist.
 
 ## Links:
 * Introduction to the Time Series Storage Layer: http://docs.opennms.org/opennms/releases/26.1.0/guide-admin/guide-admin.html#ga-opennms-operation-timeseries
