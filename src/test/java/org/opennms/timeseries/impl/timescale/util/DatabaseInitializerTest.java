@@ -29,7 +29,7 @@ public class DatabaseInitializerTest {
 
     @BeforeClass
     public static void setUpContainer() {
-        container = new GenericContainer<>("timescale/timescaledb") // :latest-pg12
+        container = new GenericContainer<>("timescale/timescaledb:latest-pg12")
                 .withExposedPorts(5432)
                 .withEnv("POSTGRES_PASSWORD", "password")
                 .withEnv("TIMESCALEDB_TELEMETRY", "off")
