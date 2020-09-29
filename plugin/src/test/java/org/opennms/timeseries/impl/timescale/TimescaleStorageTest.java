@@ -63,10 +63,7 @@ public class TimescaleStorageTest extends AbstractStorageIntegrationTest {
                 .withEnv("TIMESCALEDB_TELEMETRY", "off")
                 .waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(60)))
                 .withLogConsumer(new Slf4jLogConsumer(log));
-
         container.start();
-
-        DataSource ds = createDatasource();
     }
 
     @AfterClass
