@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<features name="openmms-plugins-timeseries-timescale-plugin-features" xmlns="http://karaf.apache.org/xmlns/features/v1.4.0">
+
+    <feature name="opennms-plugins-timeseries-timescale-plugin" description="OpenNMS :: Plugins :: timeseries-timescale-plugin" version="${project.version}">
+        <feature dependency="true">aries-blueprint</feature>
+        <feature dependency="true">shell</feature>
+        <feature version="${opennms.api.version}" dependency="true">opennms-integration-api</feature>
+        <feature version="${guava.version}" dependency="true">guava</feature>
+        <bundle>mvn:org.opennms.plugins.timeseries.timescale/timeseries-timescale-plugin-plugin/${project.version}</bundle>
+        <capability>
+            osgi.service;effective:=active;objectClass=javax.sql.DataSource;osgi.jndi.service.name=jdbc/manifestlegacydb
+        </capability>
+    </feature>
+
+    <feature name="guava" description="guava" version="${guava.version}">
+        <bundle dependency="true">mvn:com.google.guava/guava/${guava.version}</bundle>
+        <bundle dependency="true">mvn:com.google.guava/failureaccess/1.0.1</bundle>
+    </feature>
+
+</features>
