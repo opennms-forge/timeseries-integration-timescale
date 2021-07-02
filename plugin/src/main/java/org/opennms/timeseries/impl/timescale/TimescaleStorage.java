@@ -50,6 +50,7 @@ import org.opennms.integration.api.v1.timeseries.Metric;
 import org.opennms.integration.api.v1.timeseries.Sample;
 import org.opennms.integration.api.v1.timeseries.StorageException;
 import org.opennms.integration.api.v1.timeseries.Tag;
+import org.opennms.integration.api.v1.timeseries.TagMatcher;
 import org.opennms.integration.api.v1.timeseries.TimeSeriesFetchRequest;
 import org.opennms.integration.api.v1.timeseries.TimeSeriesStorage;
 import org.opennms.integration.api.v1.timeseries.immutables.ImmutableMetric;
@@ -95,6 +96,7 @@ public class TimescaleStorage implements TimeSeriesStorage {
                     ps.addBatch();
                     storeTags(sample.getMetric(), ImmutableMetric.TagType.intrinsic, sample.getMetric().getIntrinsicTags());
                     storeTags(sample.getMetric(), ImmutableMetric.TagType.meta, sample.getMetric().getMetaTags());
+                    storeTags(sample.getMetric(), ImmutableMetric.TagType.external, sample.getMetric().getExternalTags());
                 }
                 ps.executeBatch();
 
@@ -138,17 +140,16 @@ public class TimescaleStorage implements TimeSeriesStorage {
     }
 
     @Override
-    public List<Metric> getMetrics(Collection<Tag> tags) throws StorageException {
-        Objects.requireNonNull(tags, "tags collection can not be null");
-        if (tags.isEmpty()) {
-            // nothing to do
-            return Collections.emptyList();
+    public List<Metric> findMetrics(Collection<TagMatcher> matchers) throws StorageException {
+        Objects.requireNonNull(matchers, "tags collection can not be null");
+        if (matchers.isEmpty()) {
+            throw new IllegalArgumentException("Collection<TagMatcher> can not be empty");
         }
 
         final DBUtils db = new DBUtils(this.getClass());
         try {
 
-            String sql = createMetricsSQL(tags);
+            String sql = createMetricsSQL(matchers);
             Connection connection = this.dataSource.getConnection();
             db.watch(connection);
 
@@ -189,8 +190,12 @@ public class TimescaleStorage implements TimeSeriesStorage {
                 if ((type == ImmutableMetric.TagType.intrinsic)) {
                     metric.intrinsicTag(tag);
                     intrinsicTagAvailable = true;
-                } else {
+                } else if (type == ImmutableMetric.TagType.meta) {
                     metric.metaTag(tag);
+                } else if (type == ImmutableMetric.TagType.external) {
+                    metric.externalTag(tag);
+                } else {
+                    throw new IllegalArgumentException("Unknown ImmutableMetric.TagType " + type);
                 }
             }
             if (intrinsicTagAvailable) {
@@ -202,31 +207,42 @@ public class TimescaleStorage implements TimeSeriesStorage {
         return metrics;
     }
 
-    String createMetricsSQL(Collection<Tag> tags) {
-        Objects.requireNonNull(tags, "tags collection can not be null");
-        List<Tag> tagsList = new ArrayList<>(tags);
+    String createMetricsSQL(Collection<TagMatcher> matchers) {
+        Objects.requireNonNull(matchers, "matchers collection can not be null");
+        List<TagMatcher> tagsList = new ArrayList<>(matchers);
         StringBuilder b = new StringBuilder("select distinct t0.fk_timescale_metric from timescale_tag t0");
-        for (int i = 1; i < tags.size(); i++) {
+        for (int i = 1; i < matchers.size(); i++) {
             b.append(String.format(" join timescale_tag t%s on t%s.fk_timescale_metric = t%s.fk_timescale_metric", i, i - 1, 1));
         }
         b.append(" WHERE");
-        for (int i = 0; i < tags.size(); i++) {
+        for (int i = 0; i < matchers.size(); i++) {
             if (i > 0) {
                 b.append(" AND");
             }
-            Tag tag = tagsList.get(i);
-            b.append(String.format(" (t%s.key='%s' AND t%s.value='%s')", i, tag.getKey(), i, tag.getValue()));
+            TagMatcher matcher = tagsList.get(i);
+            String comp = tagMatcherToComp(matcher);
+            b.append(String.format(" (t%s.key='%s' AND t%s.value %s '%s')", i, matcher.getKey(), i, comp, matcher.getValue()));
         }
         b.append(";");
 
         return b.toString();
     }
 
-    private String handleNull(String input) {
-        if (input == null) {
-            return " is null";
+    private String tagMatcherToComp(final TagMatcher matcher) {
+        // see https://www.postgresql.org/docs/11/functions-matching.html#FUNCTIONS-POSIX-REGEXP
+        Objects.requireNonNull(matcher);
+        switch (matcher.getType()) {
+            case EQUALS:
+                return "=";
+            case NOT_EQUALS:
+                return "!=";
+            case EQUALS_REGEX:
+                return "~";
+            case NOT_EQUALS_REGEX:
+                return "!~";
+            default:
+                throw new IllegalArgumentException("Unknown TagMatcher.Type " + matcher.getType().name());
         }
-        return "='" + input + "'";
     }
 
     @Override

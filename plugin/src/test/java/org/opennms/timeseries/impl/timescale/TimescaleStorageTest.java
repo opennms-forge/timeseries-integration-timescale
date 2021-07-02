@@ -28,16 +28,20 @@
 
 package org.opennms.timeseries.impl.timescale;
 
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.Duration;
 
 import javax.sql.DataSource;
 
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.opennms.integration.api.v1.timeseries.AbstractStorageIntegrationTest;
-import org.opennms.integration.api.v1.timeseries.StorageException;
 import org.opennms.integration.api.v1.timeseries.TimeSeriesStorage;
+import org.opennms.timeseries.impl.timescale.util.DBUtils;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -53,6 +57,7 @@ public class TimescaleStorageTest extends AbstractStorageIntegrationTest {
 
     public static GenericContainer<?> container;
 
+    private DataSource dataSource;
     private TimescaleStorage timescale;
 
     @BeforeClass
@@ -67,7 +72,7 @@ public class TimescaleStorageTest extends AbstractStorageIntegrationTest {
     }
 
     @AfterClass
-    public static void tearDown() {
+    public static void tearDownContainer() {
         container.stop();
     }
 
@@ -80,15 +85,35 @@ public class TimescaleStorageTest extends AbstractStorageIntegrationTest {
     }
 
     @Before
-    public void setUp() throws StorageException {
-        DataSource dataSource = createDatasource();
+    public void setUp() throws Exception {
+        dataSource = createDatasource();
         timescale = new TimescaleStorage(dataSource);
         timescale.init();
         super.setUp();
     }
 
+    @After
+    public void tearDown() throws SQLException {
+        dropTables(dataSource);
+    }
+
     @Override
     protected TimeSeriesStorage createStorage() {
         return timescale;
+    }
+
+    private void dropTables(final DataSource dataSource) throws SQLException {
+        DBUtils db = new DBUtils();
+        try {
+            Connection conn = dataSource.getConnection();
+            db.watch(conn);
+            Statement stmt = conn.createStatement();
+            db.watch(stmt);
+            stmt.execute("DROP TABLE timescale_tag;");
+            stmt.execute("DROP TABLE timescale_metric;");
+            stmt.execute("DROP TABLE timescale_time_series;");
+        } finally {
+            db.cleanUp();
+        }
     }
 }
