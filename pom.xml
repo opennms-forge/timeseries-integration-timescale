@@ -9,13 +9,13 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <guava.version>29.0-jre</guava.version>
+        <guava.version>30.1.1-jre</guava.version>
         <java.version>1.8</java.version>
-        <junit.version>4.12</junit.version>
+        <junit.version>4.13.1</junit.version>
         <karaf.version>4.1.5</karaf.version>
         <log4j.version>2.13.3</log4j.version>
         <mockito.version>2.18.0</mockito.version>
-        <opennms.api.version>0.5.2-SNAPSHOT</opennms.api.version>
+        <opennms.api.version>0.6.0-SNAPSHOT</opennms.api.version>
         <osgi.version>6.0.0</osgi.version>
         <osgi.compendium.version>5.0.0</osgi.compendium.version>
         <osgi.enterprise.version>5.0.0</osgi.enterprise.version>
@@ -121,7 +121,7 @@
                 <plugin>
                     <groupId>org.apache.felix</groupId>
                     <artifactId>maven-bundle-plugin</artifactId>
-                    <version>4.2.1</version>
+                    <version>5.1.2</version>
                     <extensions>true</extensions>
                     <configuration>
                         <instructions>
